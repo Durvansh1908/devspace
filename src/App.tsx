@@ -9,12 +9,14 @@ type Screen = "landing" | "login" | "signup" | "dashboard";
 
 function App() {
   const [screen, setScreen] = useState<Screen>("landing");
+  const [userName, setUserName] = useState("");
+
   return (
     <div className="app">
       {screen === "landing" && <Landing onLogin={() => setScreen("login")} onSignup={() => setScreen("signup")} />}
-      {screen === "login" && <Login onBack={() => setScreen("landing")} onSuccess={() => setScreen("dashboard")} />}
-      {screen === "signup" && <Signup onBack={() => setScreen("landing")} onSuccess={() => setScreen("dashboard")} />}
-      {screen === "dashboard" && <Dashboard />}
+      {screen === "login" && <Login onBack={() => setScreen("landing")} onSuccess={(name) => { setUserName(name); setScreen("dashboard"); }} />}
+      {screen === "signup" && <Signup onBack={() => setScreen("landing")} onSuccess={(name) => { setUserName(name); setScreen("dashboard"); }} />}
+      {screen === "dashboard" && <Dashboard userName={userName} />}
     </div>
   );
 }
@@ -69,7 +71,37 @@ function Landing({ onLogin, onSignup }: { onLogin: () => void; onSignup: () => v
   );
 }
 
-function Login({ onBack, onSuccess }: { onBack: () => void; onSuccess: () => void }) {
+function Login({ onBack, onSuccess }: { onBack: () => void; onSuccess: (name: string) => void }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleLogin = async () => {
+    if (!email.trim() || !password.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("http://localhost:3001/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      if (data.token) {
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+        onSuccess(data.user.name);
+      } else {
+        setError(data.error || "Login failed");
+      }
+    } catch {
+      setError("Cannot connect to server. Is it running?");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="auth-screen">
       <button className="back-btn" onClick={onBack}>← Back</button>
@@ -84,20 +116,63 @@ function Login({ onBack, onSuccess }: { onBack: () => void; onSuccess: () => voi
           <div className="auth-logo"><LogoFull size={28} /></div>
           <h2>Welcome back</h2>
           <p>Log in to your workspace</p>
-          <input type="email" placeholder="Email address" className="auth-input" />
-          <input type="password" placeholder="Password" className="auth-input" />
-          <button className="btn-primary" onClick={onSuccess}>Log In</button>
+          {error && <p style={{ color: "#f87171", fontSize: "13px" }}>{error}</p>}
+          <input
+            type="email"
+            placeholder="Email address"
+            className="auth-input"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            className="auth-input"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+          />
+          <button className="btn-primary" onClick={handleLogin} disabled={loading}>
+            {loading ? "Logging in..." : "Log In"}
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-function Signup({ onBack, onSuccess }: { onBack: () => void; onSuccess: () => void }) {
+function Signup({ onBack, onSuccess }: { onBack: () => void; onSuccess: (name: string) => void }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSignup = async () => {
+    if (!name.trim() || !email.trim() || !password.trim()) return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await fetch("http://localhost:3001/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, password })
+      });
+      const data = await res.json();
+      if (data.token) {
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+        onSuccess(data.user.name);
+      } else {
+        setError(data.error || "Signup failed");
+      }
+    } catch {
+      setError("Cannot connect to server. Is it running?");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="auth-screen">
@@ -113,6 +188,7 @@ function Signup({ onBack, onSuccess }: { onBack: () => void; onSuccess: () => vo
           <div className="auth-logo"><LogoFull size={28} /></div>
           <h2>Create your account</h2>
           <p>Let's get you set up</p>
+          {error && <p style={{ color: "#f87171", fontSize: "13px" }}>{error}</p>}
           <div className={`form-step ${step >= 1 ? "visible" : ""}`}>
             <input type="text" placeholder="Full Name" className="auth-input" value={name}
               onChange={(e) => setName(e.target.value)}
@@ -131,9 +207,12 @@ function Signup({ onBack, onSuccess }: { onBack: () => void; onSuccess: () => vo
           </div>
           <div className={`form-step ${step >= 3 ? "visible" : "hidden"}`}>
             <input type="password" placeholder="Create password" className="auth-input" value={password}
-              onChange={(e) => setPassword(e.target.value)} />
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && password.trim() && handleSignup()} />
             {step === 3 && password.trim() && (
-              <button className="btn-primary" onClick={onSuccess}>Get Started Free 🚀</button>
+              <button className="btn-primary" onClick={handleSignup} disabled={loading}>
+                {loading ? "Creating account..." : "Get Started Free 🚀"}
+              </button>
             )}
           </div>
           <div className="step-dots">

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { LogoIcon, LogoFull } from "./Logo";
+import CodeEditor from "./CodeEditor";
 
 type Domain = "Frontend" | "Backend" | "Database" | "DevOps" | "UI/UX";
 type ActiveView = "home" | "projects" | "team" | "chill" | "settings";
@@ -24,7 +25,10 @@ export default function Dashboard({ userName }: { userName?: string }) {
   const [creating, setCreating] = useState(false);
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [activeView, setActiveView] = useState<ActiveView>("home");
-
+const [editorDomain, setEditorDomain] = useState<string | null>(null);
+if (editorDomain) {
+  return <CodeEditor domain={editorDomain} memberName={userName ?? "Developer"} onBack={() => setEditorDomain(null)} />;
+}
   return (
     <div className="dashboard">
       <aside className="icon-sidebar">
@@ -58,16 +62,16 @@ export default function Dashboard({ userName }: { userName?: string }) {
           <div className="channel-section">
             <p className="channel-label">DOMAINS</p>
             {activeProject
-              ? [...new Set(activeProject.members.filter(m => m.domain).map(m => m.domain))].map((d) => (
-                <button key={d} className="channel-item domain-channel">
-                  <span className={`domain-dot ${d?.toLowerCase().replace("/", "")}`} />{d}
-                </button>
-              ))
-              : <>
-                <button className="channel-item domain-channel"><span className="domain-dot frontend" />Frontend</button>
-                <button className="channel-item domain-channel"><span className="domain-dot backend" />Backend</button>
-              </>
-            }
+  ? [...new Set(activeProject.members.filter(m => m.domain).map(m => m.domain))].map((d) => (
+    <button key={d} className="channel-item domain-channel" onClick={() => setEditorDomain(d ?? "Frontend")}>
+      <span className={`domain-dot ${d?.toLowerCase().replace("/", "")}`} />{d}
+    </button>
+  ))
+  : <>
+    <button className="channel-item domain-channel" onClick={() => setEditorDomain("Frontend")}><span className="domain-dot frontend" />Frontend</button>
+    <button className="channel-item domain-channel" onClick={() => setEditorDomain("Backend")}><span className="domain-dot backend" />Backend</button>
+  </>
+}
           </div>
           <div className="channel-section">
             <p className="channel-label">SOCIAL</p>
