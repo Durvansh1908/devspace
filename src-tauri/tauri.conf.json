@@ -10,24 +10,24 @@
     "frontendDist": "../dist"
   },
   "app": {
-  "windows": [
-    {
-      "title": "devspace",
-      "width": 1280,
-      "height": 800,
-      "minWidth": 1024,
-      "minHeight": 600,
-      "resizable": true,
-      "fullscreen": false
+    "windows": [
+      {
+        "title": "devspace",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 1024,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": ["**"]
+      }
     }
-  ],
-  "security": {
-    "csp": null,
-    "assetProtocol": {
-      "enable": true,
-      "scope": ["**"]
-    }
-  }
   },
   "bundle": {
     "active": true,

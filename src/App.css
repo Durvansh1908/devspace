@@ -2307,3 +2307,179 @@ body {
 .editor-action-btn.run:hover { background: #059669; }
 .editor-action-btn.save { background: #374151; }
 .editor-action-btn.save:hover { background: #4b5563; }
+/* ═══════════════════════════════════════════════════
+   THEME SYSTEM — CSS Variables
+═══════════════════════════════════════════════════ */
+:root,
+[data-theme="dark"] {
+  --bg-primary: #080810;
+  --bg-secondary: #06060f;
+  --bg-tertiary: #0f0f1e;
+  --bg-elevated: #0d0d1a;
+  --bg-sidebar: #080816;
+  --border-color: #1a1a2e;
+  --border-color-strong: #2a2a3e;
+  --text-primary: #f0f0ff;
+  --text-secondary: #9ca3af;
+  --text-tertiary: #6b7280;
+  --text-muted: #4b5563;
+  --accent-primary: #6c63ff;
+  --accent-secondary: #00d4ff;
+}
+
+[data-theme="light"] {
+  --bg-primary: #f8f9fc;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f0f1f7;
+  --bg-elevated: #ffffff;
+  --bg-sidebar: #f0f1f7;
+  --border-color: #e2e4ed;
+  --border-color-strong: #c8cbdb;
+  --text-primary: #1a1a2e;
+  --text-secondary: #4b5563;
+  --text-tertiary: #6b7280;
+  --text-muted: #9ca3af;
+  --accent-primary: #6c63ff;
+  --accent-secondary: #0090b8;
+}
+
+[data-theme="light"] body { background: var(--bg-primary); color: var(--text-primary); }
+[data-theme="light"] .dashboard,
+[data-theme="light"] .icon-sidebar,
+[data-theme="light"] .channel-sidebar,
+[data-theme="light"] .dashboard-main,
+[data-theme="light"] .members-panel { background: var(--bg-secondary); }
+
+[data-theme="light"] .channel-sidebar,
+[data-theme="light"] .icon-sidebar,
+[data-theme="light"] .members-panel { border-color: var(--border-color); }
+
+[data-theme="light"] .stat-card,
+[data-theme="light"] .project-card,
+[data-theme="light"] .team-card,
+[data-theme="light"] .chill-card,
+[data-theme="light"] .chill-menu-card,
+[data-theme="light"] .settings-item { background: var(--bg-tertiary); border-color: var(--border-color); }
+
+[data-theme="light"] .main-header h1,
+[data-theme="light"] h1, [data-theme="light"] h2, [data-theme="light"] h3 { color: var(--text-primary); }
+
+[data-theme="light"] .channel-item { color: var(--text-secondary); }
+[data-theme="light"] .channel-item:hover { background: #00000008; }
+[data-theme="light"] .auth-input { background: #ffffff; border-color: var(--border-color); color: var(--text-primary); }
+[data-theme="light"] .editor-sidebar,
+[data-theme="light"] .file-explorer { background: #f5f5f5; }
+
+/* ═══════════════════════════════════════════════════
+   THEME TOGGLE
+═══════════════════════════════════════════════════ */
+.theme-toggle {
+  display: flex; gap: 2px; background: var(--bg-tertiary);
+  border: 1px solid var(--border-color); border-radius: 8px; padding: 2px;
+}
+.theme-toggle-btn {
+  background: transparent; border: none; cursor: pointer;
+  padding: 5px 9px; border-radius: 6px; font-size: 13px;
+  transition: all 0.15s; opacity: 0.5;
+}
+.theme-toggle-btn:hover { opacity: 0.8; background: var(--bg-elevated); }
+.theme-toggle-btn.active { opacity: 1; background: var(--accent-primary); box-shadow: 0 0 10px #6c63ff55; }
+
+/* ═══════════════════════════════════════════════════
+   REAL TERMINAL
+═══════════════════════════════════════════════════ */
+.real-terminal {
+  height: 100%; background: #0c0c0c; font-family: 'JetBrains Mono', 'Cascadia Code', monospace;
+  font-size: 12.5px; overflow: hidden; display: flex; flex-direction: column;
+}
+
+.real-terminal-body {
+  flex: 1; overflow-y: auto; padding: 10px 14px;
+}
+
+.real-terminal-line {
+  line-height: 1.7; white-space: pre-wrap; word-break: break-word;
+  margin-bottom: 2px;
+}
+.real-terminal-input { color: #e5e7eb; }
+.real-terminal-output { color: #d1d5db; }
+.real-terminal-error { color: #ff6b6b; }
+.real-terminal-info { color: #6b7280; font-style: italic; }
+
+.real-terminal-prompt {
+  color: #6c63ff; font-weight: 700; margin-right: 6px;
+}
+
+.real-terminal-input-row {
+  display: flex; align-items: center; gap: 6px; margin-top: 2px;
+}
+
+.real-terminal-input {
+  flex: 1; background: transparent; border: none; outline: none;
+  color: #e5e7eb; font-family: inherit; font-size: inherit;
+}
+
+.real-terminal-spinner {
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  background: #6c63ff; margin-right: 6px;
+  animation: term-pulse 0.8s ease-in-out infinite;
+}
+@keyframes term-pulse { 0%,100%{opacity:0.3} 50%{opacity:1} }
+
+/* ═══════════════════════════════════════════════════
+   FILE EXPLORER (VS Code style)
+═══════════════════════════════════════════════════ */
+.file-explorer {
+  width: 220px; background: #252526; border-right: 1px solid #1a1a1a;
+  overflow-y: auto; flex-shrink: 0; height: 100%; position: relative;
+}
+
+.file-explorer-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px 8px; font-size: 10px; font-weight: 700;
+  color: #bbbbbb; letter-spacing: 1px;
+}
+
+.file-explorer-actions { display: flex; gap: 4px; }
+.file-explorer-actions button {
+  background: transparent; border: none; color: #858585; cursor: pointer;
+  font-size: 11px; padding: 2px 4px; border-radius: 3px; transition: all 0.1s;
+}
+.file-explorer-actions button:hover { background: #ffffff15; color: #fff; }
+
+.file-explorer-section { padding: 0 8px; }
+.file-explorer-label {
+  font-size: 11px; color: #cccccc; font-weight: 600; padding: 4px 8px; margin: 0;
+}
+
+.file-explorer-loading, .file-explorer-empty {
+  font-size: 11px; color: #6b7280; padding: 8px 12px; font-style: italic;
+}
+
+.file-explorer-new-row {
+  display: flex; align-items: center; gap: 6px; padding: 4px 12px;
+}
+.file-explorer-new-row input {
+  background: #3c3c3c; border: 1px solid #6c63ff; border-radius: 3px;
+  color: #fff; font-size: 12px; padding: 2px 6px; outline: none;
+  font-family: 'Inter', sans-serif; flex: 1;
+}
+
+.file-explorer-rename-input {
+  background: #3c3c3c; border: 1px solid #6c63ff; border-radius: 3px;
+  color: #fff; font-size: 12px; padding: 1px 4px; outline: none;
+  font-family: 'Inter', sans-serif; width: 140px;
+}
+
+.file-context-menu {
+  position: fixed; background: #2d2d2d; border: 1px solid #454545;
+  border-radius: 6px; box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  z-index: 1000; overflow: hidden; min-width: 140px;
+}
+.file-context-menu button {
+  display: block; width: 100%; text-align: left; background: transparent;
+  border: none; color: #cccccc; font-size: 12px; padding: 8px 14px;
+  cursor: pointer; font-family: 'Inter', sans-serif; transition: background 0.1s;
+}
+.file-context-menu button:hover { background: #094771; color: #fff; }
+.file-context-danger:hover { background: #5a1d1d !important; color: #ff8a8a !important; }

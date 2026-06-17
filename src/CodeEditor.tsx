@@ -2,7 +2,11 @@
 import Editor, { OnMount } from "@monaco-editor/react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import AIAssistant from "./AIAssistant";
+import FileExplorer from "./components/FileExplorer";
+import Terminal from "./components/Terminal";
+import ThemeToggle from "./components/ThemeToggle";
 import { io, Socket } from "socket.io-client";
+import { ensureProjectFolder, readFile, saveFile, createFile } from "./api/fileSystem";
 
 const SOCKET_URL = import.meta.env.VITE_API_URL?.replace("/api", "") || "http://localhost:3001";
 
@@ -15,19 +19,18 @@ const DEFAULT_CODE: Record<string, string> = {
 };
 
 const LANGUAGE_MAP: Record<string, string> = {
-  Frontend: "typescript",
-  Backend: "typescript",
-  Database: "sql",
-  DevOps: "yaml",
-  "UI/UX": "css",
+  Frontend: "typescript", Backend: "typescript", Database: "sql", DevOps: "yaml", "UI/UX": "css",
+};
+
+const EXT_MAP: Record<string, string> = {
+  tsx: "typescript", ts: "typescript", js: "javascript", jsx: "typescript",
+  json: "json", css: "css", html: "html", md: "markdown", sql: "sql", yml: "yaml", yaml: "yaml",
 };
 
 const CURSOR_COLORS = ["#ff6b6b", "#ffd93d", "#6bcb77", "#4d96ff", "#c77dff", "#ff9f43"];
 
 interface Collaborator {
-  socketId: string;
-  name: string;
-  color: string;
+  socketId: string; name: string; color: string;
   position?: { lineNumber: number; column: number };
 }
 
@@ -49,33 +52,38 @@ function getExt(d: string) {
 }
 
 export default function CodeEditor({
-  domain,
-  memberName,
-  projectId,
-  userId,
-  allDomainCode,
-  onBack,
-  onCodeChange,
+  domain, memberName, projectId, userId, allDomainCode, onBack, onCodeChange,
 }: CodeEditorProps) {
+  const effectiveProjectId = projectId ?? "local";
   const [code, setCode] = useState(DEFAULT_CODE[domain] ?? "// Start coding...");
-  const [activeFile, setActiveFile] = useState(`${domain.toLowerCase()}.${getExt(domain)}`);
+  const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
+  const [activeFileName, setActiveFileName] = useState(`${domain.toLowerCase()}.${getExt(domain)}`);
+  const [projectRoot, setProjectRoot] = useState<string>("");
   const [collaborators, setCollaborators] = useState<Record<string, Collaborator>>({});
   const [isSaved, setIsSaved] = useState(true);
-  const [terminalLines, setTerminalLines] = useState([
-    { type: "prompt", text: `devspace@${domain.toLowerCase()}:~$ ready` },
-    { type: "success", text: `✓ ${domain} workspace loaded` },
-  ]);
-  const [terminalInput, setTerminalInput] = useState("");
+  const [isTauri, setIsTauri] = useState(false);
   const socketRef = useRef<Socket | null>(null);
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
   const decorationsRef = useRef<string[]>([]);
   const myColor = useRef(CURSOR_COLORS[Math.floor(Math.random() * CURSOR_COLORS.length)]);
   const suppressEmit = useRef(false);
 
-  // Socket setup
+  // Detect Tauri environment — fs/terminal only work in the desktop app
+  useEffect(() => {
+    setIsTauri(typeof (window as any).__TAURI_INTERNALS__ !== "undefined");
+  }, []);
+
+  // Resolve / create the on-disk project folder for this domain
+  useEffect(() => {
+    if (!isTauri) return;
+    ensureProjectFolder(effectiveProjectId, domain)
+      .then(setProjectRoot)
+      .catch((err) => console.error("Failed to set up project folder:", err));
+  }, [isTauri, effectiveProjectId, domain]);
+
+  // Socket setup — real-time collaboration
   useEffect(() => {
     if (!projectId) return;
-
     const socket = io(SOCKET_URL);
     socketRef.current = socket;
 
@@ -89,11 +97,7 @@ export default function CodeEditor({
     });
 
     socket.on("user-left", ({ socketId }: { socketId: string }) => {
-      setCollaborators((prev) => {
-        const next = { ...prev };
-        delete next[socketId];
-        return next;
-      });
+      setCollaborators((prev) => { const n = { ...prev }; delete n[socketId]; return n; });
     });
 
     socket.on("code-update", ({ code: incoming, domain: d }: { code: string; domain: string }) => {
@@ -104,10 +108,7 @@ export default function CodeEditor({
     });
 
     socket.on("cursor-update", ({ socketId, position, userName, color }: { socketId: string; position: { lineNumber: number; column: number }; userName: string; color: string }) => {
-      setCollaborators((prev) => ({
-        ...prev,
-        [socketId]: { socketId, name: userName, color, position },
-      }));
+      setCollaborators((prev) => ({ ...prev, [socketId]: { socketId, name: userName, color, position } }));
     });
 
     return () => {
@@ -116,30 +117,19 @@ export default function CodeEditor({
     };
   }, [projectId, domain, memberName, userId]);
 
-  // Render remote cursors in Monaco
+  // Remote cursor decorations
   useEffect(() => {
     const editor = editorRef.current;
     if (!editor) return;
-
     const decorations = Object.values(collaborators)
       .filter((c) => c.position)
       .map((c) => ({
         range: {
-          startLineNumber: c.position!.lineNumber,
-          startColumn: c.position!.column,
-          endLineNumber: c.position!.lineNumber,
-          endColumn: c.position!.column + 1,
+          startLineNumber: c.position!.lineNumber, startColumn: c.position!.column,
+          endLineNumber: c.position!.lineNumber, endColumn: c.position!.column + 1,
         },
-        options: {
-          className: "remote-cursor",
-          beforeContentClassName: "remote-cursor-label",
-          stickiness: 1,
-          zIndex: 100,
-          glyphMarginClassName: undefined,
-          hoverMessage: { value: c.name },
-        },
+        options: { className: "remote-cursor", stickiness: 1, zIndex: 100, hoverMessage: { value: c.name } },
       }));
-
     decorationsRef.current = (editor as any).deltaDecorations(decorationsRef.current, decorations);
   }, [collaborators]);
 
@@ -148,7 +138,6 @@ export default function CodeEditor({
     setCode(newCode);
     setIsSaved(false);
     onCodeChange?.(domain, newCode);
-
     if (!suppressEmit.current && projectId && socketRef.current) {
       socketRef.current.emit("code-change", { projectId, code: newCode, domain });
     }
@@ -156,54 +145,63 @@ export default function CodeEditor({
 
   const handleEditorMount: OnMount = (editor) => {
     editorRef.current = editor;
-
     editor.onDidChangeCursorPosition((e) => {
       if (projectId && socketRef.current) {
         socketRef.current.emit("cursor-move", {
-          projectId,
-          position: { lineNumber: e.position.lineNumber, column: e.position.column },
-          userId,
-          userName: memberName,
-          color: myColor.current,
+          projectId, position: { lineNumber: e.position.lineNumber, column: e.position.column },
+          userId, userName: memberName, color: myColor.current,
         });
       }
     });
   };
 
-  const handleSave = () => {
-    setIsSaved(true);
-    setTerminalLines((prev) => [
-      ...prev,
-      { type: "prompt", text: `devspace@${domain.toLowerCase()}:~$ save` },
-      { type: "success", text: `✓ ${activeFile} saved` },
-    ]);
+  // File selection from the real explorer — reads actual disk content
+  const handleFileSelect = async (path: string) => {
+    if (!isTauri) return;
+    try {
+      const content = await readFile(path);
+      setCode(content);
+      setActiveFilePath(path);
+      setActiveFileName(path.split("/").pop() ?? path.split("\\").pop() ?? "file");
+      setIsSaved(true);
+    } catch (err) {
+      console.error("Failed to read file:", err);
+    }
   };
 
-  const handleRun = () => {
-    setTerminalLines((prev) => [
-      ...prev,
-      { type: "prompt", text: `devspace@${domain.toLowerCase()}:~$ run` },
-      { type: "info", text: `▶ Running ${domain} workspace...` },
-      { type: "success", text: `✓ Compiled successfully` },
-    ]);
+  const handleSave = async () => {
+    if (isTauri && activeFilePath) {
+      try {
+        await saveFile(activeFilePath, code);
+        setIsSaved(true);
+      } catch (err) {
+        console.error("Save failed:", err);
+      }
+    } else if (isTauri && projectRoot) {
+      // No file selected yet — create the default domain file
+      try {
+        const defaultName = `${domain.toLowerCase()}.${getExt(domain)}`;
+        const path = await createFile(effectiveProjectId, domain, defaultName, code);
+        setActiveFilePath(path);
+        setActiveFileName(defaultName);
+        setIsSaved(true);
+      } catch (err) {
+        console.error("Save failed:", err);
+      }
+    } else {
+      setIsSaved(true); // web fallback — nothing to persist to disk
+    }
   };
 
-  const handleTerminalCommand = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key !== "Enter" || !terminalInput.trim()) return;
-    const cmd = terminalInput.trim();
-    setTerminalLines((prev) => [
-      ...prev,
-      { type: "prompt", text: `devspace@${domain.toLowerCase()}:~$ ${cmd}` },
-      { type: "output", text: `Command '${cmd}' executed` },
-    ]);
-    setTerminalInput("");
-  };
+  const detectedLanguage = (() => {
+    const ext = activeFileName.split(".").pop()?.toLowerCase() ?? "";
+    return EXT_MAP[ext] ?? LANGUAGE_MAP[domain] ?? "typescript";
+  })();
 
   const collabList = Object.values(collaborators);
 
   return (
     <div className="editor-container">
-      {/* Top bar */}
       <div className="editor-topbar">
         <div className="editor-topbar-left">
           <button className="editor-back-btn" onClick={onBack}>←</button>
@@ -213,20 +211,13 @@ export default function CodeEditor({
           </div>
         </div>
         <div className="editor-tabs">
-          {["Frontend", "Backend", "Database", "DevOps", "UI/UX"]
-            .filter((d) => allDomainCode?.[d] !== undefined || d === domain)
-            .map((d) => (
-              <div
-                key={d}
-                className={`editor-tab ${d === domain ? "active" : ""}`}
-                style={{ borderTop: d === domain ? `2px solid ${myColor.current}` : undefined }}
-              >
-                <span className="tab-dot" />
-                {d.toLowerCase()}.{getExt(d)}
-              </div>
-            ))}
+          <div className="editor-tab active" style={{ borderTop: `2px solid ${myColor.current}` }}>
+            <span className="tab-dot" />
+            {activeFileName}
+          </div>
         </div>
         <div className="editor-topbar-right">
+          <ThemeToggle />
           <div className="editor-collaborators">
             <div className="collab-avatar" style={{ background: myColor.current }} title={memberName}>
               {memberName[0].toUpperCase()}
@@ -236,112 +227,76 @@ export default function CodeEditor({
                 {c.name[0].toUpperCase()}
               </div>
             ))}
-            {collabList.length > 0 && (
-              <span className="collab-count">{collabList.length + 1} online</span>
-            )}
+            {collabList.length > 0 && <span className="collab-count">{collabList.length + 1} online</span>}
           </div>
-          <button className="editor-action-btn run" onClick={handleRun}>▶ Run</button>
           <button className="editor-action-btn save" onClick={handleSave}>
             {isSaved ? "✓ Saved" : "💾 Save"}
           </button>
           <AIAssistant
-            code={code}
-            domain={domain}
-            allDomainCode={allDomainCode}
+            code={code} domain={domain} allDomainCode={allDomainCode}
             onFixApplied={(fixed) => { setCode(fixed); setIsSaved(false); }}
           />
         </div>
       </div>
 
-      {/* Editor body */}
-      <div className="editor-body">
-        {/* Sidebar */}
-        <div className="editor-sidebar">
-          <div className="editor-sidebar-title">EXPLORER</div>
-          <div className="editor-sidebar-section">
-            <p className="editor-sidebar-label">▾ DEVSPACE</p>
-            {[
-              { name: `${domain.toLowerCase()}.${getExt(domain)}`, icon: "📄" },
-              { name: "package.json", icon: "📦" },
-              { name: "README.md", icon: "📝" },
-            ].map((f) => (
-              <div
-                key={f.name}
-                className={`editor-file ${activeFile === f.name ? "active" : ""}`}
-                onClick={() => setActiveFile(f.name)}
-              >
-                <span>{f.icon}</span> {f.name}
-              </div>
-            ))}
-          </div>
-
-          {collabList.length > 0 && (
-            <div className="editor-sidebar-section" style={{ marginTop: "16px" }}>
-              <p className="editor-sidebar-label">▾ COLLABORATORS</p>
-              {collabList.map((c) => (
-                <div key={c.socketId} className="editor-file" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <span style={{ width: 8, height: 8, borderRadius: "50%", background: c.color, display: "inline-block" }} />
-                  {c.name}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Monaco */}
-        <div className="editor-main">
-          <Editor
-            height="100%"
-            language={LANGUAGE_MAP[domain] ?? "typescript"}
-            value={code}
-            onChange={handleCodeChange}
-            onMount={handleEditorMount}
-            theme="vs-dark"
-            options={{
-              fontSize: 14,
-              fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-              minimap: { enabled: true },
-              lineNumbers: "on",
-              roundedSelection: true,
-              scrollBeyondLastLine: false,
-              automaticLayout: true,
-              tabSize: 2,
-              wordWrap: "on",
-              cursorBlinking: "smooth",
-              cursorSmoothCaretAnimation: "on",
-              smoothScrolling: true,
-              padding: { top: 16 },
-              renderLineHighlight: "all",
-              bracketPairColorization: { enabled: true },
-            }}
+      <div className="editor-body" style={{ display: "flex", position: "relative", flex: 1, overflow: "hidden" }}>
+        {isTauri ? (
+          <FileExplorer
+            projectId={effectiveProjectId}
+            domain={domain}
+            activeFilePath={activeFilePath}
+            onFileSelect={handleFileSelect}
           />
-        </div>
-
-        {/* Terminal */}
-        <div className="editor-terminal">
-          <div className="terminal-tabs">
-            <span className="terminal-tab active">TERMINAL</span>
-            <span className="terminal-tab">OUTPUT</span>
-            <span className="terminal-tab">PROBLEMS</span>
-          </div>
-          <div className="terminal-body">
-            {terminalLines.map((line, i) => (
-              <p key={i} className={`terminal-line ${line.type === "success" ? "terminal-success" : line.type === "info" ? "terminal-info" : ""}`}>
-                {line.type === "prompt" ? (
-                  <><span className="terminal-prompt">{line.text.split("$ ")[0]}$</span> {line.text.split("$ ")[1]}</>
-                ) : line.text}
-              </p>
-            ))}
-            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-              <span className="terminal-prompt">devspace@{domain.toLowerCase()}:~$</span>
-              <input
-                style={{ background: "transparent", border: "none", outline: "none", color: "#f0f0ff", flex: 1, fontFamily: "monospace", fontSize: "13px" }}
-                value={terminalInput}
-                onChange={(e) => setTerminalInput(e.target.value)}
-                onKeyDown={handleTerminalCommand}
-                placeholder=""
-              />
+        ) : (
+          <div className="file-explorer">
+            <div className="file-explorer-header"><span>EXPLORER</span></div>
+            <div className="file-explorer-section">
+              <p className="file-explorer-empty">File system access requires the DevSpace desktop app. Running in browser preview mode — changes aren't saved to disk.</p>
             </div>
+          </div>
+        )}
+
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+          <div style={{ flex: 1, minHeight: 0 }}>
+            <Editor
+              height="100%"
+              language={detectedLanguage}
+              value={code}
+              onChange={handleCodeChange}
+              onMount={handleEditorMount}
+              theme="vs-dark"
+              options={{
+                fontSize: 14,
+                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                minimap: { enabled: true },
+                lineNumbers: "on",
+                roundedSelection: true,
+                scrollBeyondLastLine: false,
+                automaticLayout: true,
+                tabSize: 2,
+                wordWrap: "on",
+                cursorBlinking: "smooth",
+                cursorSmoothCaretAnimation: "on",
+                smoothScrolling: true,
+                padding: { top: 16 },
+                renderLineHighlight: "all",
+                bracketPairColorization: { enabled: true },
+              }}
+            />
+          </div>
+
+          <div style={{ height: "200px", borderTop: "1px solid #3c3c3c", flexShrink: 0 }}>
+            {isTauri && projectRoot ? (
+              <Terminal cwd={projectRoot} />
+            ) : (
+              <div className="real-terminal">
+                <div className="real-terminal-body">
+                  <div className="real-terminal-line real-terminal-info">
+                    Terminal requires the DevSpace desktop app to access your OS shell.
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

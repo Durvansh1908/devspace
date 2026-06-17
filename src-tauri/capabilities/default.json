@@ -5,6 +5,24 @@
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "opener:default"
+    "opener:default",
+    "shell:allow-execute",
+    "shell:allow-open",
+    "fs:default",
+    "fs:allow-mkdir",
+    "fs:allow-write-text-file",
+    "fs:allow-read-text-file",
+    "fs:allow-read-dir",
+    "fs:allow-remove",
+    "fs:allow-rename",
+    "fs:allow-exists",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        { "path": "$HOME/devspace-projects" },
+        { "path": "$HOME/devspace-projects/**" }
+      ]
+    },
+    "dialog:default"
   ]
 }

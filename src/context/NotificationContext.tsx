@@ -1,5 +1,4 @@
-import React, { useState, useCallback, ReactNode, createContext, useContext } from "react";
-
+import { useState, useCallback, ReactNode, createContext, useContext } from "react";
 export type ToastType = "success" | "error" | "info" | "warning";
 
 export interface Toast {
