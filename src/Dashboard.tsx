@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { LogoIcon, LogoFull } from "./Logo";
 import CodeEditor from "./CodeEditor";
+import ChillZone from "./components/ChillZone";
+import MeetingRoom from "./components/MeetingRoom";
 
 type Domain = "Frontend" | "Backend" | "Database" | "DevOps" | "UI/UX";
 type ActiveView = "home" | "projects" | "team" | "chill" | "settings";
@@ -20,15 +22,45 @@ interface Project {
   createdAt: string;
 }
 
-export default function Dashboard({ userName }: { userName?: string }) {
+export default function Dashboard({ userName, userId }: { userName?: string; userId?: string }) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [creating, setCreating] = useState(false);
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [activeView, setActiveView] = useState<ActiveView>("home");
-const [editorDomain, setEditorDomain] = useState<string | null>(null);
-if (editorDomain) {
-  return <CodeEditor domain={editorDomain} memberName={userName ?? "Developer"} onBack={() => setEditorDomain(null)} />;
-}
+  const [editorDomain, setEditorDomain] = useState<string | null>(null);
+  const [showMeeting, setShowMeeting] = useState(false);
+  const [allDomainCode, setAllDomainCode] = useState<Record<string, string>>({});
+
+  const handleCodeChange = (domain: string, code: string) => {
+    setAllDomainCode((prev) => ({ ...prev, [domain]: code }));
+  };
+
+  // Meeting room
+  if (showMeeting && activeProject) {
+    return (
+      <MeetingRoom
+        roomId={activeProject.id}
+        userName={userName ?? "Developer"}
+        onLeave={() => setShowMeeting(false)}
+      />
+    );
+  }
+
+  // Code editor
+  if (editorDomain) {
+    return (
+      <CodeEditor
+        domain={editorDomain}
+        memberName={userName ?? "Developer"}
+        projectId={activeProject?.id}
+        userId={userId}
+        allDomainCode={allDomainCode}
+        onCodeChange={handleCodeChange}
+        onBack={() => setEditorDomain(null)}
+      />
+    );
+  }
+
   return (
     <div className="dashboard">
       <aside className="icon-sidebar">
@@ -62,20 +94,23 @@ if (editorDomain) {
           <div className="channel-section">
             <p className="channel-label">DOMAINS</p>
             {activeProject
-  ? [...new Set(activeProject.members.filter(m => m.domain).map(m => m.domain))].map((d) => (
-    <button key={d} className="channel-item domain-channel" onClick={() => setEditorDomain(d ?? "Frontend")}>
-      <span className={`domain-dot ${d?.toLowerCase().replace("/", "")}`} />{d}
-    </button>
-  ))
-  : <>
-    <button className="channel-item domain-channel" onClick={() => setEditorDomain("Frontend")}><span className="domain-dot frontend" />Frontend</button>
-    <button className="channel-item domain-channel" onClick={() => setEditorDomain("Backend")}><span className="domain-dot backend" />Backend</button>
-  </>
-}
+              ? [...new Set(activeProject.members.filter(m => m.domain).map(m => m.domain))].map((d) => (
+                <button key={d} className="channel-item domain-channel" onClick={() => setEditorDomain(d ?? "Frontend")}>
+                  <span className={`domain-dot ${d?.toLowerCase().replace("/", "")}`} />{d}
+                </button>
+              ))
+              : <>
+                <button className="channel-item domain-channel" onClick={() => setEditorDomain("Frontend")}><span className="domain-dot frontend" />Frontend</button>
+                <button className="channel-item domain-channel" onClick={() => setEditorDomain("Backend")}><span className="domain-dot backend" />Backend</button>
+              </>
+            }
           </div>
           <div className="channel-section">
             <p className="channel-label">SOCIAL</p>
             <button className={`channel-item ${activeView === "chill" ? "active" : ""}`} onClick={() => setActiveView("chill")}>🎮 Chill Zone</button>
+            {activeProject && (
+              <button className="channel-item" onClick={() => setShowMeeting(true)}>📹 Start Meeting</button>
+            )}
           </div>
         </div>
         <div className="channel-user">
@@ -99,10 +134,24 @@ if (editorDomain) {
             }}
           />
         )}
-        {!creating && activeView === "home" && <HomeView projects={projects} activeProject={activeProject} onCreateProject={() => setCreating(true)} onSelectProject={setActiveProject} />}
-        {!creating && activeView === "projects" && <ProjectsView projects={projects} onCreateProject={() => setCreating(true)} onSelectProject={(p) => { setActiveProject(p); setActiveView("home"); }} />}
+        {!creating && activeView === "home" && (
+          <HomeView
+            projects={projects}
+            activeProject={activeProject}
+            onCreateProject={() => setCreating(true)}
+            onSelectProject={setActiveProject}
+            onStartMeeting={() => setShowMeeting(true)}
+          />
+        )}
+        {!creating && activeView === "projects" && (
+          <ProjectsView
+            projects={projects}
+            onCreateProject={() => setCreating(true)}
+            onSelectProject={(p) => { setActiveProject(p); setActiveView("home"); }}
+          />
+        )}
         {!creating && activeView === "team" && <TeamView members={activeProject?.members ?? []} />}
-        {!creating && activeView === "chill" && <ChillView />}
+        {!creating && activeView === "chill" && <ChillZone />}
         {!creating && activeView === "settings" && <SettingsView />}
       </main>
 
@@ -123,6 +172,13 @@ if (editorDomain) {
                 </div>
               </div>
             ))}
+            <button
+              className="btn-primary"
+              style={{ marginTop: "12px", width: "100%", fontSize: "13px" }}
+              onClick={() => setShowMeeting(true)}
+            >
+              📹 Start Meeting
+            </button>
           </div>
         ) : (
           <div className="no-members">
@@ -135,11 +191,22 @@ if (editorDomain) {
   );
 }
 
-function HomeView({ projects, activeProject, onCreateProject, onSelectProject }: {
+<div className="hero-3d-wrapper">
+  <div className="hero-cube">
+    <div className="cube-face cube-front">{`</>`}</div>
+    <div className="cube-face cube-back">DB</div>
+    <div className="cube-face cube-left">AI</div>
+    <div className="cube-face cube-right">⚡</div>
+    <div className="cube-face cube-top">🚀</div>
+    <div className="cube-face cube-bottom">∞</div>
+  </div>
+</div>
+function HomeView({ projects, activeProject, onCreateProject, onSelectProject, onStartMeeting }: {
   projects: Project[];
   activeProject: Project | null;
   onCreateProject: () => void;
   onSelectProject: (p: Project) => void;
+  onStartMeeting: () => void;
 }) {
   return (
     <div className="main-content">
@@ -148,7 +215,12 @@ function HomeView({ projects, activeProject, onCreateProject, onSelectProject }:
           <h1>{activeProject ? activeProject.name : "Welcome back 👋"}</h1>
           <p>{activeProject ? activeProject.description : "What are we building today?"}</p>
         </div>
-        <button className="btn-primary" onClick={onCreateProject}>+ New Project</button>
+        <div style={{ display: "flex", gap: "10px" }}>
+          {activeProject && (
+            <button className="btn-secondary" onClick={onStartMeeting}>📹 Meet</button>
+          )}
+          <button className="btn-primary" onClick={onCreateProject}>+ New Project</button>
+        </div>
       </div>
       <div className="stats-row">
         <div className="stat-card">
@@ -280,39 +352,6 @@ function TeamView({ members }: { members: Member[] }) {
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-function ChillView() {
-  return (
-    <div className="main-content">
-      <div className="main-header">
-        <div>
-          <h1>Chill Zone 🎮</h1>
-          <p>Take a break, hang out with your team</p>
-        </div>
-      </div>
-      <div className="chill-grid">
-        <div className="chill-card">
-          <span>🎵</span>
-          <h3>Music Room</h3>
-          <p>Listen together while you code</p>
-          <button className="btn-secondary">Coming Soon</button>
-        </div>
-        <div className="chill-card">
-          <span>🎮</span>
-          <h3>Quick Games</h3>
-          <p>Take a 5 minute break</p>
-          <button className="btn-secondary">Coming Soon</button>
-        </div>
-        <div className="chill-card">
-          <span>☕</span>
-          <h3>Coffee Chat</h3>
-          <p>Random 1-on-1 with a teammate</p>
-          <button className="btn-secondary">Coming Soon</button>
-        </div>
-      </div>
     </div>
   );
 }
